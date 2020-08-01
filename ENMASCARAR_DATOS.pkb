@@ -1,44 +1,50 @@
 CREATE OR REPLACE PACKAGE BODY SISGODBA.PKG_ENMASCARAR_DATOS IS
 
-PROCEDURE P_ENMASCARAR_DATOS (LIMPIARTABLAS         IN      BOOLEAN,
-                              ENMASCARARTABLAS      IN      BOOLEAN) IS
+PROCEDURE P_ENMASCARAR_DATOS (ENMASCARARTABLAS          IN      BOOLEAN,
+                              LIMPIARTABLAS             IN      BOOLEAN) IS
     CURSOR c_whitetabla IS
     SELECT DISTINCT atc.owner, atc.table_name
-    FROM (SELECT owner, table_name FROM SISGODBA.MANTENER_TABLAS WHERE activo = 'Y') lt
+    FROM (SELECT owner, table_name FROM SISGODBA.ENMASCARARMANTTABLAS WHERE activo = 'Y') emt
     RIGHT JOIN ALL_TAB_COLS atc
-    ON lt.owner = atc.owner AND lt.table_name = atc.table_name
-    WHERE lt.table_name IS NULL AND (atc.owner = 'SISGODBA' --OR atc.owner = 'AGVIRTUAL'
-        ) ORDER BY atc.owner, atc.table_name;
+    ON emt.owner = atc.owner AND emt.table_name = atc.table_name
+    WHERE emt.table_name IS NULL AND (atc.owner = 'SISGODBA' --OR atc.owner = 'AGVIRTUAL'
+        )
+        AND atc.table_name != 'ENMASCARARLOG'
+        AND atc.table_name != 'ENMASCARARMANTTABLAS'
+        AND atc.table_name != 'ENMASCARARDATOS'
+    ORDER BY atc.owner, atc.table_name;
 
-    v_owner                 SISGODBA.MANTENER_TABLAS.owner%TYPE;
-    v_table_name                SISGODBA.MANTENER_TABLAS.table_name%TYPE;
+    v_owner                     SISGODBA.ENMASCARARMANTTABLAS.owner%TYPE;
+    v_table_name                SISGODBA.ENMASCARARMANTTABLAS.table_name%TYPE;
 
     CURSOR c_maskcol IS
-    SELECT owner, table_name, column_name, tipo, activo
-    FROM SISGODBA.ENMASCARAR_DATOS lt
-    WHERE activo = 'Y' ORDER BY owner, table_name;
+    SELECT ed.owner, ed.table_name, ed.column_name, ed.tipo, ed.activo
+    FROM SISGODBA.ENMASCARARDATOS ed
+    WHERE activo = 'Y' ORDER BY ed.prioridad, ed.owner, ed.table_name;
 
-    v2_owner                 SISGODBA.ENMASCARAR_DATOS.owner%TYPE;
-    v2_table_name                SISGODBA.ENMASCARAR_DATOS.table_name%TYPE;
-    v2_column_name                   SISGODBA.ENMASCARAR_DATOS.column_name%TYPE;
-    v2_tipo                   SISGODBA.ENMASCARAR_DATOS.tipo%TYPE;
-    v2_activo                   SISGODBA.ENMASCARAR_DATOS.activo%TYPE;
+    v2_owner                    SISGODBA.ENMASCARARDATOS.owner%TYPE;
+    v2_table_name               SISGODBA.ENMASCARARDATOS.table_name%TYPE;
+    v2_column_name              SISGODBA.ENMASCARARDATOS.column_name%TYPE;
+    v2_tipo                     SISGODBA.ENMASCARARDATOS.tipo%TYPE;
+    v2_activo                   SISGODBA.ENMASCARARDATOS.activo%TYPE;
 
-    nomBD          VARCHAR2(100);
-    strSQL          VARCHAR2(5000);
-    anterior          VARCHAR2(200);
+    nomBD               VARCHAR2(100);
+    strSQL              VARCHAR2(5000);
+    anterior            VARCHAR2(200);
+    anteriordate        DATE;
+    resultado           BOOLEAN := FALSE;
 
-    O_NOMBRE VARCHAR2 (40) := 'AEIOUNKSTPMDLGCYHRaeiounkstpmdlgcyhr';
-    N_NOMBRE VARCHAR2 (40) := 'XXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxx';
+    O_NOMBRE            VARCHAR2 (40) := 'AEIOUNKSTPMDLGCYHRaeiounkstpmdlgcyhr';
+    N_NOMBRE            VARCHAR2 (40) := 'XXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxx';
     
-    O_APELLIDO VARCHAR2 (40) := 'AEIOUNKSTPMDLGCYHRaeiounkstpmdlgcyhr';
-    N_APELLIDO VARCHAR2 (40) := 'XXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxx';
+    O_APELLIDO          VARCHAR2 (40) := 'AEIOUNKSTPMDLGCYHRaeiounkstpmdlgcyhr';
+    N_APELLIDO          VARCHAR2 (40) := 'XXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxx';
 
-    O_DIRECCION VARCHAR2 (40) := 'AEIOUNKSTPMDLGCYHRaeiounkstpmdlgcyhr';
-    N_DIRECCION VARCHAR2 (40) := 'XXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxx';
+    O_DIRECCION         VARCHAR2 (40) := 'AEIOUNKSTPMDLGCYHRaeiounkstpmdlgcyhr';
+    N_DIRECCION         VARCHAR2 (40) := 'XXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxx';
     
-    O_CORREO VARCHAR2 (40) := 'aeiouAEIOUSsNnCcPp';
-    N_CORREO VARCHAR2 (40) := 'xxxxxxxxxxxxxxxxxx';
+    O_CORREO            VARCHAR2 (40) := 'aeiouAEIOUSsNnCcPp';
+    N_CORREO            VARCHAR2 (40) := 'xxxxxxxxxxxxxxxxxx';
 
     --O_NUMERO VARCHAR2 (40) := '0123456789';
     --N_NUMERO VARCHAR2 (40) := '7030517942';
@@ -64,6 +70,15 @@ BEGIN
                 NULL;
         END;
 
+        --DIRECCION
+        BEGIN
+            EXECUTE IMMEDIATE 'ALTER TRIGGER SISGODBA.GEN01220 DISABLE';
+        EXCEPTION
+            WHEN OTHERS
+            THEN
+                NULL;
+        END;
+
         --PERSONANUMEROTELEFONO
         BEGIN
             EXECUTE IMMEDIATE 'DROP INDEX XPKPERSONANUMEROTELEFONO';
@@ -75,24 +90,6 @@ BEGIN
 
         COMMIT;
 
-        IF LIMPIARTABLAS THEN
-            OPEN c_whitetabla;
-            LOOP
-                FETCH c_whitetabla INTO v_owner, v_table_name;
-                EXIT WHEN c_whitetabla%NOTFOUND;
-                DBMS_OUTPUT.PUT_LINE('DELETE ' || v_table_name);
-                BEGIN
-                    EXECUTE IMMEDIATE 'DELETE ' || v_table_name;
-                EXCEPTION
-                    WHEN OTHERS
-                    THEN
-                        DBMS_OUTPUT.PUT_LINE('No se pudo ejecutar DELETE ' || v_table_name);
-                END;
-            END LOOP;
-        END IF;
-
-        COMMIT;
-        
         strSQL := '';
 
         IF ENMASCARARTABLAS THEN
@@ -102,8 +99,21 @@ BEGIN
                 EXIT WHEN c_maskcol%NOTFOUND;
                 IF (anterior != v2_table_name) OR anterior IS NULL THEN
                     IF strSQL IS NOT NULL THEN
-                        DBMS_OUTPUT.PUT_LINE(strSQL);
-                        EXECUTE IMMEDIATE strSQL;
+                        BEGIN
+                            --DBMS_OUTPUT.PUT_LINE(strSQL);
+                            EXECUTE IMMEDIATE strSQL;
+                            resultado := TRUE;
+                        EXCEPTION
+                            WHEN OTHERS
+                            THEN
+                                resultado := FALSE;
+                        END;
+                        IF resultado OR SQLCODE = 0 THEN
+                            EXECUTE IMMEDIATE 'INSERT INTO ENMASCARARLOG VALUES (''CORRECTO'', ''ENMASCARAR'', '''|| v2_owner ||''', '''|| anterior ||''', NULL, NULL, ''' || REPLACE(TRIM(LPAD(strSQL, 2900)),'''','''''') ||''', '''|| TO_CHAR(anteriordate, 'YYYY-MM-DD HH24:MI:SS') || ''', SYSDATE)';
+                            resultado := FALSE;
+                        ELSE
+                            EXECUTE IMMEDIATE 'INSERT INTO ENMASCARARLOG VALUES (''ERRADO'', ''ENMASCARAR'', '''|| v2_owner ||''', '''|| anterior ||''', '''|| SQLCODE ||''', '''|| SQLERRM ||''', ''' || REPLACE(TRIM(LPAD(strSQL, 2900)),'''','''''') ||''', ''' || TO_CHAR(anteriordate, 'YYYY-MM-DD HH24:MI:SS') || ''', SYSDATE)';
+                        END IF;
                         COMMIT;
                     END IF;
                     CASE
@@ -135,16 +145,54 @@ BEGIN
                     END CASE;
                 END IF;
                 anterior := v2_table_name;
+                anteriordate := SYSDATE;
             END LOOP;
 
-            IF strSQL != '' THEN
-                DBMS_OUTPUT.PUT_LINE(strSQL);
-                EXECUTE IMMEDIATE strSQL;
-                COMMIT;
+            IF strSQL IS NOT NULL THEN
+                --DBMS_OUTPUT.PUT_LINE(strSQL);
+                BEGIN
+                    EXECUTE IMMEDIATE strSQL;
+                    resultado := TRUE;
+                EXCEPTION
+                    WHEN OTHERS
+                    THEN
+                        resultado := FALSE;
+                END;
+                IF resultado OR SQLCODE = 0 THEN
+                    EXECUTE IMMEDIATE 'INSERT INTO ENMASCARARLOG VALUES (''CORRECTO'', ''ENMASCARAR'', '''|| v2_owner ||''', '''|| anterior ||''', NULL, NULL, ''' || REPLACE(TRIM(LPAD(strSQL, 2900)),'''','''''') ||''', ''' || TO_CHAR(anteriordate, 'YYYY-MM-DD HH24:MI:SS') || ''', SYSDATE)';
+                    resultado := FALSE;
+                ELSE
+                    EXECUTE IMMEDIATE 'INSERT INTO ENMASCARARLOG VALUES (''ERRADO'', ''ENMASCARAR'', '''|| v2_owner ||''', '''|| anterior ||''', '''|| SQLCODE ||''', '''|| SQLERRM ||''', ''' || REPLACE(TRIM(LPAD(strSQL, 2900)),'''','''''') ||''', ''' || TO_CHAR(anteriordate, 'YYYY-MM-DD HH24:MI:SS') || ''', SYSDATE)';
+                END IF;
             END IF;
+            COMMIT;
         END IF;
 
-        
+        IF LIMPIARTABLAS THEN
+            OPEN c_whitetabla;
+            LOOP
+                FETCH c_whitetabla INTO v_owner, v_table_name;
+                EXIT WHEN c_whitetabla%NOTFOUND;
+                --DBMS_OUTPUT.PUT_LINE('DELETE ' || v_owner || '.' || v_table_name);
+                BEGIN
+                    anteriordate := SYSDATE;
+                    EXECUTE IMMEDIATE 'DELETE ' || v_owner || '.' || v_table_name;
+                    resultado := TRUE;
+                EXCEPTION
+                    WHEN OTHERS
+                    THEN
+                        resultado := FALSE;
+                END;
+                IF resultado OR SQLCODE = 0 THEN
+                    EXECUTE IMMEDIATE 'INSERT INTO ENMASCARARLOG VALUES (''CORRECTO'', ''LIMPIAR'', '''|| v_owner ||''', '''|| v_table_name ||''', NULL, NULL, ''DELETE ' || v_owner || '.' || v_table_name ||''', ''' || TO_CHAR(anteriordate, 'YYYY-MM-DD HH24:MI:SS') || ''', SYSDATE)';
+                    resultado := FALSE;
+                ELSE
+                    EXECUTE IMMEDIATE 'INSERT INTO ENMASCARARLOG VALUES (''ERRADO'', ''LIMPIAR'', '''|| v_owner ||''', '''|| v_table_name ||''', '''|| SQLCODE ||''', '''|| SQLERRM ||''', ''DELETE ' || v_owner || '.' || v_table_name ||''', ''' || TO_CHAR(anteriordate, 'YYYY-MM-DD HH24:MI:SS') || ''', SYSDATE)';
+                END IF;
+                COMMIT;
+            END LOOP;
+        END IF;
+
         --PADRONFECHA
         BEGIN
             EXECUTE IMMEDIATE ('ALTER TRIGGER SISGODBA.CRE06085 ENABLE');
@@ -163,6 +211,15 @@ BEGIN
                 NULL;
         END;
 
+        --DIRECCION
+        BEGIN
+            EXECUTE IMMEDIATE 'ALTER TRIGGER SISGODBA.GEN01220 ENABLE';
+        EXCEPTION
+            WHEN OTHERS
+            THEN
+                NULL;
+        END;
+
         ----PERSONANUMEROTELEFONO
         --BEGIN
         --    EXECUTE IMMEDIATE 'CREATE UNIQUE INDEX SISGODBA.XPKPERSONANUMEROTELEFONO ON SISGODBA.PERSONANUMEROTELEFONO (CODIGOPERSONA, NUMEROTELEFONO)    NOLOGGING    TABLESPACE SISGO_INDICES    PCTFREE    10    INITRANS   2    MAXTRANS   255    STORAGE    (                INITIAL          896K                NEXT             1M                MAXSIZE          UNLIMITED                MINEXTENTS       1                MAXEXTENTS       UNLIMITED                PCTINCREASE      0                BUFFER_POOL      DEFAULT               )';
@@ -174,7 +231,7 @@ BEGIN
 
         COMMIT;
     ELSE
-        DBMS_OUTPUT.PUT_LINE('No es GLOBAL_NAME=' || NOMBREBDENMASCARAR);
+        DBMS_OUTPUT.PUT_LINE('No es GLOBAL_NAME=DESA');
     END IF;
 END;
 END PKG_ENMASCARAR_DATOS;

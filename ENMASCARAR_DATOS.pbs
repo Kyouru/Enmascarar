@@ -1,5 +1,5 @@
 CREATE OR REPLACE PACKAGE SISGODBA.PKG_ENMASCARAR_DATOS IS
-    PROCEDURE P_ENMASCARAR_DATOS (	LIMPIARTABLAS         IN      BOOLEAN,		--Borra los datos de las tablas que no se encuentren en la lista
-                              		ENMASCARARTABLAS      IN      BOOLEAN);		
+    PROCEDURE P_ENMASCARAR_DATOS (	ENMASCARARTABLAS		IN      BOOLEAN,		
+                              		LIMPIARTABLAS			IN      BOOLEAN);		--Borra los datos de las tablas que no se encuentren en la lista
 END PKG_ENMASCARAR_DATOS;
 /

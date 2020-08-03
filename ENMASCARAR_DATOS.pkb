@@ -1,7 +1,8 @@
 CREATE OR REPLACE PACKAGE BODY SYS.PKG_ENMASCARAR_DATOS IS
 
 PROCEDURE P_ENMASCARAR_DATOS (ENMASCARARTABLAS          IN      BOOLEAN,
-                              LIMPIARTABLAS             IN      BOOLEAN) IS
+                              LIMPIARTABLAS             IN      BOOLEAN,
+                              EJECUTARQUERY             IN      BOOLEAN) IS
     CURSOR c_whitetabla IS
     SELECT DISTINCT atc.owner, atc.table_name
     FROM (SELECT owner, table_name FROM SYS.ENMASCARARMANTTABLAS WHERE activo = 'Y') emt
@@ -99,10 +100,12 @@ BEGIN
                 EXIT WHEN c_maskcol%NOTFOUND;
                 IF (anterior != v2_table_name) OR anterior IS NULL THEN
                     IF strSQL IS NOT NULL THEN
+                        DBMS_OUTPUT.PUT_LINE(strSQL);
                         BEGIN
-                            --DBMS_OUTPUT.PUT_LINE(strSQL);
-                            EXECUTE IMMEDIATE strSQL;
-                            COMMIT;
+                            IF EJECUTARQUERY THEN
+                                EXECUTE IMMEDIATE strSQL;
+                                COMMIT;
+                            END IF;
                             resultado := TRUE;
                         EXCEPTION
                             WHEN OTHERS
@@ -150,9 +153,12 @@ BEGIN
             END LOOP;
 
             IF strSQL IS NOT NULL THEN
-                --DBMS_OUTPUT.PUT_LINE(strSQL);
+                DBMS_OUTPUT.PUT_LINE(strSQL);
                 BEGIN
-                    EXECUTE IMMEDIATE strSQL;
+                    IF EJECUTARQUERY THEN
+                        EXECUTE IMMEDIATE strSQL;
+                        COMMIT;
+                    END IF;
                     COMMIT;
                     resultado := TRUE;
                 EXCEPTION
@@ -175,11 +181,14 @@ BEGIN
             LOOP
                 FETCH c_whitetabla INTO v_owner, v_table_name;
                 EXIT WHEN c_whitetabla%NOTFOUND;
-                --DBMS_OUTPUT.PUT_LINE('DELETE ' || v_owner || '.' || v_table_name);
+                strSQL := 'DELETE ' || v_owner || '.' || v_table_name;
+                DBMS_OUTPUT.PUT_LINE(strSQL);
                 BEGIN
                     anteriordate := SYSDATE;
-                    EXECUTE IMMEDIATE 'DELETE ' || v_owner || '.' || v_table_name;
-                    COMMIT;
+                    IF EJECUTARQUERY THEN
+                        EXECUTE IMMEDIATE strSQL;
+                        COMMIT;
+                    END IF;
                     resultado := TRUE;
                 EXCEPTION
                     WHEN OTHERS

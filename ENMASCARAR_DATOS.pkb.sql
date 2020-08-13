@@ -181,7 +181,7 @@ BEGIN
             LOOP
                 FETCH c_whitetabla INTO v_owner, v_table_name;
                 EXIT WHEN c_whitetabla%NOTFOUND;
-                strSQL := 'DELETE ' || v_owner || '.' || v_table_name;
+                strSQL := 'TRUNCATE TABLE ' || v_owner || '.' || v_table_name;
                 DBMS_OUTPUT.PUT_LINE(strSQL);
                 BEGIN
                     anteriordate := SYSDATE;

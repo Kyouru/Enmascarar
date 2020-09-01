@@ -12,9 +12,9 @@ PROCEDURE P_ENMASCARAR_DATOS (ENMASCARARTABLAS          IN      BOOLEAN,
     ON emt.owner = atc.owner AND emt.table_name = atc.table_name
     WHERE emt.table_name IS NULL AND (atc.owner = 'SISGODBA' --OR atc.owner = 'AGVIRTUAL'
         )
-        AND (atc.table_name != 'ENMASCARARLOG' AND atc.owner != 'SISGODBA')
-        AND (atc.table_name != 'ENMASCARARMANTTABLAS' AND atc.owner != 'SISGODBA')
-        AND (atc.table_name != 'ENMASCARARDATOS' AND atc.owner != 'SISGODBA')
+        AND (atc.owner || atc.table_name != 'SISGODBAENMASCARARLOG')
+        AND (atc.owner || atc.table_name != 'SISGODBAENMASCARARMANTTABLAS')
+        AND (atc.owner || atc.table_name != 'SISGODBAENMASCARARDATOS')
     ORDER BY atc.owner, atc.table_name;
 
     v_owner                     SISGODBA.ENMASCARARMANTTABLAS.owner%TYPE;
